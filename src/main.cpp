@@ -16,6 +16,11 @@ const int pwmChannelCrane2 = 1;  // PWM channel (0-15) on ESP32
 const int pwmCrane1Pin = 18;
 const int pwmCrane2Pin = 19;
 
+//pwm channel for claw
+const int pwmChannelClaw = 2;  // PWM channel (0-15) on ESP32
+// output pin for claw
+const int pwmClawPin = 23; 
+
 //top and bottom switches pins
 const int topSwitchPin = 35;
 const int bottomSwitchPin  = 34;
@@ -24,6 +29,8 @@ const int bottomSwitchPin  = 34;
 void clawUp(int speed);
 void clawDown(int speed);
 void grabSequence(int speed, int graspStrength);
+void closeClaw(int graspStrength);
+void openClaw();
 
 
 //////
@@ -51,10 +58,15 @@ void setup() {
   ledcSetup(pwmChannelCrane2, pwmFrequency, pwmResolution);
   ledcAttachPin(pwmCrane2Pin, pwmChannelCrane2);
 
+  //claw
+  ledcSetup(pwmChannelClaw, pwmFrequency, pwmResolution);
+  ledcAttachPin(pwmClawPin, pwmChannelClaw);
+  
   // Set initial duty cycle (0-255)
   int dutyCycle = 0;  
   ledcWrite(pwmChannelCrane1, dutyCycle);
   ledcWrite(pwmChannelCrane2, dutyCycle);
+  ledcWrite(pwmChannelClaw, 0);
 
 
   initWiFi();
@@ -93,6 +105,14 @@ void loop() {
 }
 
 
+void closeClaw(int graspStrength){
+  ledcWrite(pwmChannelClaw, graspStrength);
+}
+
+void openClaw(){
+  closeClaw(0);
+}
+
 
 void clawUp(int speed){
   int pinState;
@@ -128,12 +148,17 @@ void clawDown(int speed){
 void grabSequence(int speed, int graspStrength){
   // move claw to the bottom
   clawDown(speed);
-  delay(2000);
+  delay(1000);
 
   // close claw
+  closeClaw(graspStrength);
 
   // lift claw
-  clawUp(speed); 
+  clawUp(speed);
+
+  //wait some seconds and then open claw again
+  delay(4000);
+  openClaw(); 
 }
 
 
@@ -181,7 +206,7 @@ void mqtt_subscriber_callback(char* topic, byte* payload, unsigned int length){
   Serial.println(cmd);
   
   if ( cmd == "grab_seq"){
-      grabSequence(128,255);
+      grabSequence(255,255);
     }
 
 }
