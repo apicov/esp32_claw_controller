@@ -149,6 +149,9 @@ void mqtt_subscriber_callback(char* topic, byte* payload, unsigned int length){
     clawDown(speed);
     }
 
+  // publishes task done message
+  client.publish("claw/status", "done");
+
 }
 
 
