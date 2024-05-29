@@ -25,6 +25,8 @@ const int pwmClawPin = 23;
 const int topSwitchPin = 35;
 const int bottomSwitchPin  = 34;
 
+const int MAX_PARAMETERS = 2;
+
 
 void clawUp(int speed);
 void clawDown(int speed);
@@ -41,6 +43,8 @@ PubSubClient client(espClient);
 void mqtt_connect();
 void mqtt_subscriber_callback(char* topic, byte* payload, unsigned int length);
 void initWiFi();
+
+void parseCommandString(const String &data, String &command, String parameters[], int &paramCount);
 
 
 void setup() {
@@ -76,7 +80,7 @@ void setup() {
   client.setCallback(mqtt_subscriber_callback);
   mqtt_connect();
 
-  client.subscribe("claw_ctl/cmd");
+  client.subscribe("claw/ctl");
 
 }
 
@@ -90,7 +94,7 @@ void loop() {
     
     if (!client.connected()) {
       mqtt_connect();
-      client.subscribe("claw_ctl/cmd");
+      client.subscribe("claw/ctl");
     }
 
   client.loop();
@@ -102,6 +106,49 @@ void loop() {
   clawDown(255);
   delay(3000);
 */
+}
+
+
+void mqtt_subscriber_callback(char* topic, byte* payload, unsigned int length){
+  Serial.print("message received: ");
+
+  // convert payload to string
+  byte message[20];
+  memcpy(message, payload, length);
+  // add null character at the end
+  message[length] = '\0';
+  // convert to string
+  String data = (char*)message;
+  Serial.println(data);
+
+  String command;
+  String parameters[MAX_PARAMETERS]; // Array to store parameters
+  int paramCount = 0;
+
+  // Call the function to parse the command string
+  parseCommandString(data, command, parameters, paramCount);
+  
+  if ( command == "grab_seq"){
+    int speed = parameters[0].toInt();
+    int grip = parameters[1].toInt();
+    grabSequence(speed, grip);
+    }
+  else if (command == "open" ) {
+    openClaw();
+  }
+  else if ( command == "close"){
+    int grip = parameters[0].toInt();
+    closeClaw(grip);
+    }
+  else if ( command == "up"){
+    int speed = parameters[0].toInt();
+    clawUp(speed);
+    }
+  else if ( command == "down"){
+    int speed = parameters[0].toInt();
+    clawDown(speed);
+    }
+
 }
 
 
@@ -152,13 +199,14 @@ void grabSequence(int speed, int graspStrength){
 
   // close claw
   closeClaw(graspStrength);
+  delay(300);
 
   // lift claw
   clawUp(speed);
 
   //wait some seconds and then open claw again
-  delay(4000);
-  openClaw(); 
+  //delay(3000);
+  //openClaw(); 
 }
 
 
@@ -192,21 +240,31 @@ void mqtt_connect() {
   }
 }
 
+void parseCommandString(const String &data, String &command, String parameters[], int &paramCount) {
+  // Reset the parameters
+  paramCount = 0;
 
-void mqtt_subscriber_callback(char* topic, byte* payload, unsigned int length){
-  Serial.print("message received: ");
+  // Find the position of the first space
+  int firstSpaceIndex = data.indexOf(' ');
 
-  // convert payload to string
-  byte message[20];
-  memcpy(message, payload, length);
-  // add null character at the end
-  message[length] = '\0';
-  // convert to string
-  String cmd = (char*)message;
-  Serial.println(cmd);
-  
-  if ( cmd == "grab_seq"){
-      grabSequence(255,255);
+  if (firstSpaceIndex != -1) {
+    // Extract the command
+    command = data.substring(0, firstSpaceIndex);
+
+    // Extract parameters
+    int startIndex = firstSpaceIndex + 1; // Start after the first space
+    while (startIndex < data.length() && paramCount < MAX_PARAMETERS) {
+      int spaceIndex = data.indexOf(' ', startIndex);
+      if (spaceIndex == -1) {  // No more spaces, take the rest of the string
+        spaceIndex = data.length();
+      }
+      parameters[paramCount++] = data.substring(startIndex, spaceIndex);
+      startIndex = spaceIndex + 1; // Move past the last space
     }
-
+  } else {
+    // No spaces found, entire string is the command
+    command = data;
+  }
 }
+
+
