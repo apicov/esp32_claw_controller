@@ -1,52 +1,129 @@
+/**
+ * @file main.cpp
+ * @brief Main source file for ESP32 Claw Controller. Handles WiFi, MQTT, and motor control logic.
+ */
 #include <Arduino.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
 
 #include "private_data.h"
 
+/**
+ * @brief Built-in LED pin number.
+ */
 int LED_BUILTIN = 2;
 
+/**
+ * @brief PWM resolution in bits.
+ */
 const int pwmResolution = 8;  // PWM resolution (bits) - 8 bits for duty cycle
+/**
+ * @brief PWM frequency in Hz.
+ */
 const int pwmFrequency = 40000;  // PWM frequency in Hz
 
-//pwm channels for crane motor
+/**
+ * @brief PWM channel for crane motor 1.
+ */
 const int pwmChannelCrane1 = 0;  // PWM channel (0-15) on ESP32
+/**
+ * @brief PWM channel for crane motor 2.
+ */
 const int pwmChannelCrane2 = 1;  // PWM channel (0-15) on ESP32
-//pwm pins of crane motor
+/**
+ * @brief PWM pin for crane motor 1.
+ */
 const int pwmCrane1Pin = 18;
+/**
+ * @brief PWM pin for crane motor 2.
+ */
 const int pwmCrane2Pin = 19;
 
-//pwm channel for claw
+/**
+ * @brief PWM channel for claw.
+ */
 const int pwmChannelClaw = 2;  // PWM channel (0-15) on ESP32
-// output pin for claw
+/**
+ * @brief Output pin for claw.
+ */
 const int pwmClawPin = 23; 
 
-//top and bottom switches pins
+/**
+ * @brief Top switch pin.
+ */
 const int topSwitchPin = 35;
+/**
+ * @brief Bottom switch pin.
+ */
 const int bottomSwitchPin  = 34;
 
+/**
+ * @brief Maximum number of command parameters.
+ */
 const int MAX_PARAMETERS = 2;
 
-
+/**
+ * @brief Moves the claw up at the specified speed until the top switch is triggered.
+ * @param speed PWM duty cycle (0-255).
+ */
 void clawUp(int speed);
+/**
+ * @brief Moves the claw down at the specified speed until the bottom switch is triggered.
+ * @param speed PWM duty cycle (0-255).
+ */
 void clawDown(int speed);
+/**
+ * @brief Executes the grab sequence: lowers claw, closes, then lifts.
+ * @param speed PWM duty cycle for movement (0-255).
+ * @param graspStrength PWM duty cycle for claw grip (0-255).
+ */
 void grabSequence(int speed, int graspStrength);
+/**
+ * @brief Closes the claw with the specified strength.
+ * @param graspStrength PWM duty cycle for claw grip (0-255).
+ */
 void closeClaw(int graspStrength);
+/**
+ * @brief Opens the claw (sets grip to 0).
+ */
 void openClaw();
 
 
 //////
+/**
+ * @brief MQTT client name.
+ */
 const char* MQTT_CLIENT_NAME= "ESP32_CLAW";
 WiFiClient espClient;
 PubSubClient client(espClient);
 
+/**
+ * @brief Connects to the MQTT broker.
+ */
 void mqtt_connect();
+/**
+ * @brief Callback for MQTT subscription messages.
+ * @param topic Topic name.
+ * @param payload Message payload.
+ * @param length Payload length.
+ */
 void mqtt_subscriber_callback(char* topic, byte* payload, unsigned int length);
+/**
+ * @brief Initializes WiFi connection.
+ */
 void initWiFi();
-
+/**
+ * @brief Parses a command string into command and parameters.
+ * @param data Input string.
+ * @param command Output: command name.
+ * @param parameters Output: array of parameters.
+ * @param paramCount Output: number of parameters found.
+ */
 void parseCommandString(const String &data, String &command, String parameters[], int &paramCount);
 
-
+/**
+ * @brief Arduino setup function. Initializes serial, pins, PWM, WiFi, and MQTT.
+ */
 void setup() {
   Serial.begin(9600);
   Serial.print("start");
@@ -84,6 +161,9 @@ void setup() {
 
 }
 
+/**
+ * @brief Arduino main loop. Handles WiFi/MQTT reconnection and client loop.
+ */
 void loop() {
 
   //connect to network in case there is no connection
@@ -108,7 +188,12 @@ void loop() {
 */
 }
 
-
+/**
+ * @brief Callback for MQTT messages. Parses and executes commands.
+ * @param topic Topic name.
+ * @param payload Message payload.
+ * @param length Payload length.
+ */
 void mqtt_subscriber_callback(char* topic, byte* payload, unsigned int length){
   Serial.print("message received: ");
 
@@ -154,16 +239,25 @@ void mqtt_subscriber_callback(char* topic, byte* payload, unsigned int length){
 
 }
 
-
+/**
+ * @brief Closes the claw with the specified strength.
+ * @param graspStrength PWM duty cycle for claw grip (0-255).
+ */
 void closeClaw(int graspStrength){
   ledcWrite(pwmChannelClaw, graspStrength);
 }
 
+/**
+ * @brief Opens the claw (sets grip to 0).
+ */
 void openClaw(){
   closeClaw(0);
 }
 
-
+/**
+ * @brief Moves the claw up at the specified speed until the top switch is triggered.
+ * @param speed PWM duty cycle (0-255).
+ */
 void clawUp(int speed){
   int pinState;
 
@@ -179,7 +273,10 @@ void clawUp(int speed){
   ledcWrite(pwmChannelCrane1, 0);
 }
 
-
+/**
+ * @brief Moves the claw down at the specified speed until the bottom switch is triggered.
+ * @param speed PWM duty cycle (0-255).
+ */
 void clawDown(int speed){
   int pinState;
 
@@ -195,6 +292,11 @@ void clawDown(int speed){
   ledcWrite(pwmChannelCrane2, 0);
 }
 
+/**
+ * @brief Executes the grab sequence: lowers claw, closes, then lifts.
+ * @param speed PWM duty cycle for movement (0-255).
+ * @param graspStrength PWM duty cycle for claw grip (0-255).
+ */
 void grabSequence(int speed, int graspStrength){
   // move claw to the bottom
   clawDown(speed);
@@ -212,8 +314,9 @@ void grabSequence(int speed, int graspStrength){
   //openClaw(); 
 }
 
-
-
+/**
+ * @brief Initializes WiFi connection and waits until connected.
+ */
 void initWiFi() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(SSID, PASSWORD);
@@ -228,7 +331,9 @@ void initWiFi() {
   Serial.println(WiFi.localIP());
 }
 
-
+/**
+ * @brief Connects to the MQTT broker, retrying until successful.
+ */
 void mqtt_connect() {
   // Connect to MQTT Broker
   while (!client.connected()) {
@@ -243,6 +348,13 @@ void mqtt_connect() {
   }
 }
 
+/**
+ * @brief Parses a command string into command and parameters.
+ * @param data Input string.
+ * @param command Output: command name.
+ * @param parameters Output: array of parameters.
+ * @param paramCount Output: number of parameters found.
+ */
 void parseCommandString(const String &data, String &command, String parameters[], int &paramCount) {
   // Reset the parameters
   paramCount = 0;
